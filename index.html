@@ -180,7 +180,7 @@ body{padding-bottom:70px;}
 <li>This assessment has <b>eight parts</b>. Answer every question. If a question does not apply to you, write <b>N/A</b>.</li>
 <li>There is no time limit. Take the time to answer thoughtfully and in your own words — depth matters more than length.</li>
 <li>Part III (Bible &amp; Doctrine) is not pass/fail. Even among our elders there are healthy shades of divergence. We are looking for <b>how you think</b>, not merely what you conclude. If your view on a matter is not fully formed, say so and explain your leanings.</li>
-<li>Type your answers directly into this page. <b>Your progress saves automatically</b> in this browser — you can close it and come back anytime on the same device.</li><li>When finished, complete the affirmation on the final page, then click <b>Finish &amp; Download PDF</b> in the bar at the bottom and email the PDF back to the church office.</li>
+<li>Type your answers directly into this page. <b>Your progress saves automatically</b> in this browser — you can close it and come back anytime on the same device.</li><li>When finished, complete the affirmation on the final page, then click <b>Submit Assessment</b> in the bar at the bottom. Your answers are sent directly to Sun City Church, and you&rsquo;ll be prompted to save a PDF copy for your own records.</li>
 <li>Your answers will be reviewed by the Lead Pastor and current elders and will form the basis of your candidacy interview.</li>
 </ul>
 </div>
@@ -218,7 +218,7 @@ and follow-up on anything I have written.</p>
 <div class='toolbar'>
   <span id='savestate'>&#10003; Progress saves automatically in this browser</span>
   <span class='spacer'></span>
-  <button onclick='finishAssessment()'>Finish &amp; Download PDF</button>
+  <button onclick='finishAssessment()'>Submit Assessment</button>
 </div>
 <script>
 const KEY='suncity-elder-assessment';
@@ -249,11 +249,90 @@ function save(){
 }
 document.addEventListener('input',save);
 document.addEventListener('change',save);
-function finishAssessment(){
+// ---- Google Form submission bridge ----
+const FORM_ACTION='https://docs.google.com/forms/d/e/1FAIpQLSe0M__wM5Xu-xnq1bw_CXRFpt1zP4X5WX3-xLJjsOfNvymYVw/formResponse';
+const TEXT_MAP={info_name:375159091,info_phone:1657113946,info_address:210702194,
+info_email:883268367,info_spouse:1200257753,info_children:1547925286,
+q1:2006808268,q2:1661290097,q3:734884496,q4:436550171,q5:123480212,q6:1777255882,
+q7:1464713940,q8:1823776532,q9:1239172496,q10:1279237220,q11:537402127,q12:613320180,
+q13:2057259273,q14:1657644089,q15:357982325,q16:1937524205,q17:1612866431,
+q18:1296970216,q19:423914883,q20:988580778,q21:2018265459,q27:1212275925,
+q28:1666133068,q29:1298695742,q30:1816154962,q31:1004549281,q32:2096341018,
+q33:1869401306,q34:1501450890,q35:2042235635,q36:919663293,q37:1454613827,
+q38:1421683929,q39:291641587,q40:1968599967,q41:1314032524,q42:1143915222,
+q43:1237247020,q44:694785179,q45:557298937,q46:1457505193,q47:909415527,
+q49:2076106728,q51:1780383950,q52:1356547141,q53:144499840,q54:685874624,
+q55:1410681374,q56:1749234340,q57:808568836};
+const BANKRUPTCY=[251111383,257577889]; // duplicate question in the form
+const DATE_MAP={info_dob:1872147540,info_spouse_bday:1399645082,info_anniv:1558097236};
+const TRIAGE_ENTRIES=[1618685955,1754658151,1992096791,1502551351,775578946,
+1249690591,238573329,1924857347,518300512,1485678859];
+const TRIAGE_VALUES={die:"I'd die for it (All Christians must agree on this)",
+divide:"I'd divide over it (We must agree in order to go to church together, especially in leadership)",
+discuss:"I'd discuss it (We can agree to disagree and continue debates and discussions in fellowship)"};
+const MC_MAP={
+q23:[238460750,["God predestined us to be saved and our decision to accept him was therefore inevitable.","God predestined us to be saved based on his foreknowledge of our decision or faith.","God predestined Christ and his church as a corporate reality, not specific individuals.","I am not sure; or I do not have a strong opinion."]],
+q24:[1584999111,["The baptism in the Holy Spirit is what all believers experience at the moment of salvation and there is not necessarily an immediate outward evidence.","The baptism in the Holy Spirit is distinct from salvation and is accompanied by some form of outward evidence\u2014often/usually speaking in tongues.","The baptism in the Holy Spirit is distinct from salvation and is always accompanied by the outward evidence of speaking in tongues.","I am not sure; or I do not have a strong opinion."]],
+q25:[2460096,["The Bible teaches that only men should be elders in the local church.","The Bible does not limit women from being elders in the local church.","A woman can be an elder, but only alongside her husband.","I am not sure; or I do not have a strong opinion."]],
+q26:[1475889401,["The Biblical promises to restore Israel will occur at the end of history in a straightforward way that pertains to national/ethnic Israel.","The Biblical promises to restore Israel find fulfilment in Christ and his church.","The Biblical promises to restore Israel find ultimate fulfillment in Christ and his church, yet some promises may find a unique fulfillment in national or ethnic Israel.","I am not sure; or I do not have a strong opinion."]]};
+const CHECK_ENTRY=2122477547;
+const CHECK_CHOICES=["Marriage","Sexual issues (abuse, adultery, pornography)","Child raising","Addictions / substance abuse","Teen problems","Business issues","Relational offenses","Finances","Legal issues","Personal life direction"];
+function txt(k){const el=document.querySelector("[contenteditable][data-k='"+k+"']");return el?el.innerText.trim():'';}
+function buildSubmission(){
+  const p=new URLSearchParams();
+  for(const[k,id]of Object.entries(TEXT_MAP)){const v=txt(k);if(v)p.append('entry.'+id,v);}
+  const bank=txt('q50');if(bank)BANKRUPTCY.forEach(id=>p.append('entry.'+id,bank));
+  const nm=txt('info_name')||txt('cover_name');if(nm&&!txt('info_name'))p.append('entry.375159091',nm);
+  for(const[k,id]of Object.entries(DATE_MAP)){
+    const v=txt(k);if(!v)continue;const d=new Date(v);
+    if(!isNaN(d)){p.append('entry.'+id+'_year',d.getFullYear());
+      p.append('entry.'+id+'_month',d.getMonth()+1);p.append('entry.'+id+'_day',d.getDate());}}
+  TRIAGE_ENTRIES.forEach((id,i)=>{
+    const c=document.querySelector("input[name='triage"+i+"']:checked");
+    if(c)p.append('entry.'+id,TRIAGE_VALUES[c.value]);});
+  for(const[k,[id,choices]]of Object.entries(MC_MAP)){
+    const c=document.querySelector("input[name='"+k+"']:checked");
+    if(c)p.append('entry.'+id,choices['ABCD'.indexOf(c.value)]);}
+  document.querySelectorAll("input[type=checkbox][data-k]").forEach(el=>{
+    if(!el.checked)return;const i=parseInt(el.dataset.k.split('_')[1],10);
+    if(CHECK_CHOICES[i]!==undefined)p.append('entry.'+CHECK_ENTRY,CHECK_CHOICES[i]);});
+  p.append('pageHistory','0,1,2,3,4,5,6,7');
+  p.append('fvv','1');
+  return p;
+}
+function submitToChurch(){
+  return new Promise(resolve=>{
+    let fr=document.getElementById('gform-sink');
+    if(!fr){fr=document.createElement('iframe');fr.id='gform-sink';fr.name='gform-sink';
+      fr.style.display='none';document.body.appendChild(fr);}
+    const f=document.createElement('form');
+    f.action=FORM_ACTION;f.method='POST';f.target='gform-sink';f.style.display='none';
+    for(const[k,v]of buildSubmission().entries()){
+      const inp=document.createElement('input');inp.type='hidden';inp.name=k;inp.value=v;
+      f.appendChild(inp);}
+    document.body.appendChild(f);
+    const done=()=>{f.remove();resolve(true);};
+    fr.addEventListener('load',done,{once:true});
+    setTimeout(done,6000);
+    f.submit();
+  });
+}
+async function finishAssessment(){
   const empty=[...document.querySelectorAll('.ans')].filter(el=>!el.textContent.trim()).length;
-  if(empty>0 && !confirm(empty+' written answer(s) are still blank. Download anyway?'))return;
+  if(empty>0 && !confirm(empty+' written answer(s) are still blank. Submit anyway?'))return;
+  const btn=document.querySelector('.toolbar button');
+  if(localStorage.getItem(KEY+'-submitted')==='1' &&
+     !confirm('You already submitted this assessment. Submit again?')){window.print();return;}
+  btn.disabled=true;btn.textContent='Submitting\u2026';
+  await submitToChurch();
+  localStorage.setItem(KEY+'-submitted','1');
+  btn.disabled=false;btn.textContent='Download PDF Copy';
+  document.getElementById('savestate').innerHTML=
+    '\u2713 <b>Submitted to Sun City Church.</b> Now save a PDF copy for your records.';
   window.print();
 }
 restore();
+if(localStorage.getItem(KEY+'-submitted')==='1'){
+  document.querySelector('.toolbar button').textContent='Download PDF Copy';}
 </script>
 </div></body></html>
