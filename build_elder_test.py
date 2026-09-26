@@ -536,9 +536,23 @@ function submitToChurch(){
     f.submit();
   });
 }
+function countingChecks(){
+  return [...document.querySelectorAll("input[type=checkbox][data-k]")].filter(el=>el.checked).length;
+}
 async function finishAssessment(){
   const empty=[...document.querySelectorAll('.ans')].filter(el=>!el.textContent.trim()).length;
   if(empty>0 && !confirm(empty+' written answer(s) are still blank. Submit anyway?'))return;
+  // The church's form marks the counseling-areas question required and rejects the WHOLE
+  // submission with a 400 when it is blank. We cannot read that rejection from here, so the
+  // only safe move is to stop before sending. Found 2026-09-25 by submitting a real test.
+  if(countingChecks()===0){
+    alert('Please tick at least one area in "Which of the following areas would you feel '
+      +'comfortable counseling" before submitting. Leaving it blank causes the church\\'s '
+      +'form to reject the whole assessment.');
+    const first=document.querySelector("input[type=checkbox][data-k]");
+    if(first)first.scrollIntoView({block:'center'});
+    return;
+  }
   const btn=document.querySelector('.toolbar button:not(.ghost)');
   if(localStorage.getItem(KEY+'-submitted')==='1' &&
      !confirm('You already sent this assessment. Send it again?')){downloadAnswers();window.print();return;}
