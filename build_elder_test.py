@@ -1,12 +1,23 @@
 """Build the Eldership Candidate Assessment (test format) as branded Sun City HTML."""
+import os
 import sys
-sys.path.insert(0, "/Users/dannyschulz/Desktop/Sun City AI Team/Team/Brand Assets")
+
+# Paths were left pointing at ~/Desktop/Sun City AI Team, which stopped existing when the
+# AI OS moved off iCloud-synced Desktop on 2026-09-07. Repaired 2026-09-25.
+ROOT = os.environ.get("AIOS_ROOT", "/Users/dannyschulz/AI OS")
+LIBRARY = os.path.join(ROOT, "Team Library")
+sys.path.insert(0, os.path.join(LIBRARY, "Team", "Brand Assets"))
 from sun_city_html import page, lockup_b64, ORANGE, CHARCOAL, LGRAY
 
 FILLABLE = "--fillable" in sys.argv
-OUT = ("/Users/dannyschulz/Desktop/Sun City AI Team/Owner's Inbox/Eldership/Eldership Candidate Assessment (Online).html"
+REPO = os.path.dirname(os.path.abspath(__file__))
+INBOX = os.path.join(LIBRARY, "Owner's Inbox", "Eldership")
+
+# The fillable build IS the published page: it is what GitHub Pages serves at
+# https://daschulz.github.io/elder-assessment/ , so it is written straight into the repo.
+OUT = (os.path.join(REPO, "index.html")
        if FILLABLE else
-       "/Users/dannyschulz/Desktop/Sun City AI Team/Owner's Inbox/Eldership/Eldership Candidate Assessment.html")
+       os.path.join(INBOX, "Eldership Candidate Assessment.html"))
 
 # ---------- extra CSS for test formatting ----------
 EXTRA_CSS = f"""
@@ -77,6 +88,13 @@ input[type=radio],input[type=checkbox]{{accent-color:{ORANGE};width:17px;height:
   letter-spacing:.06em;text-transform:uppercase;background:{ORANGE};color:#fff;
   border:none;border-radius:4px;padding:11px 22px;cursor:pointer;}}
 .toolbar button:hover{{filter:brightness(1.08);}}
+.toolbar button.ghost{{background:transparent;border:1.5px solid rgba(255,255,255,.55);}}
+.toolbar button.ghost:hover{{background:rgba(255,255,255,.12);filter:none;}}
+.toolbar a{{color:#fff;}}
+@media(max-width:640px){{.toolbar{{gap:10px;padding:10px 12px;flex-wrap:wrap;}}
+  .toolbar button{{padding:10px 14px;font-size:12px;}}
+  .toolbar .spacer{{display:none;}}
+  #savestate{{flex-basis:100%;font-size:12px;}}}}
 body{{padding-bottom:70px;}}
 @media print{{
   .toolbar{{display:none !important;}}
@@ -163,7 +181,7 @@ body = f"""
 <li>This assessment has <b>eight parts</b>. Answer every question. If a question does not apply to you, write <b>N/A</b>.</li>
 <li>There is no time limit. Take the time to answer thoughtfully and in your own words — depth matters more than length.</li>
 <li>Part III (Bible &amp; Doctrine) is not pass/fail. Even among our elders there are healthy shades of divergence. We are looking for <b>how you think</b>, not merely what you conclude. If your view on a matter is not fully formed, say so and explain your leanings.</li>
-{'<li>Type your answers directly into this page. <b>Your progress saves automatically</b> in this browser — you can close it and come back anytime on the same device.</li><li>When finished, complete the affirmation on the final page, then click <b>Submit Assessment</b> in the bar at the bottom. Your answers are sent directly to Sun City Church, and you&rsquo;ll be prompted to save a PDF copy for your own records.</li>' if FILLABLE else '<li>Written answers may be completed on these pages or typed and attached, numbered to match.</li><li>Sign the affirmation on the final page before returning the assessment.</li>'}
+{'<li>Type your answers directly into this page. <b>Your progress saves automatically</b> in this browser — you can close it and come back anytime on the same device.</li><li>When finished, complete the affirmation on the final page, then click <b>Submit Assessment</b> in the bar at the bottom. Your answers are sent to Sun City Church, a copy downloads to your computer, and you&rsquo;ll be prompted to save a PDF as well. <b>Please email the downloaded copy to danny@suncitychurch.com too</b>, so there is no chance your work is lost in transit. You can download a copy at any time with the <b>Download my answers</b> button, finished or not.</li>' if FILLABLE else '<li>Written answers may be completed on these pages or typed and attached, numbered to match.</li><li>Sign the affirmation on the final page before returning the assessment.</li>'}
 <li>Your answers will be reviewed by the Lead Pastor and current elders and will form the basis of your candidacy interview.</li>
 </ul>
 </div>
@@ -385,6 +403,7 @@ FILL_JS = """
 <div class='toolbar'>
   <span id='savestate'>&#10003; Progress saves automatically in this browser</span>
   <span class='spacer'></span>
+  <button class='ghost' onclick='downloadAnswers()'>Download my answers</button>
   <button onclick='finishAssessment()'>Submit Assessment</button>
 </div>
 <script>
@@ -467,6 +486,39 @@ function buildSubmission(){
   p.append('fvv','1');
   return p;
 }
+function candidateName(){
+  const el=document.querySelector("[contenteditable][data-k='info_name']");
+  const n=(el?el.textContent:'').trim().replace(/[\\/:*?"<>|]/g,'').slice(0,60);
+  return n||'Candidate';
+}
+function downloadAnswers(){
+  // A self-contained copy of this page with every answer in place. Works whether or
+  // not the submission reached the church, and whether or not you are online.
+  try{
+    const clone=document.documentElement.cloneNode(true);
+    clone.querySelectorAll('.toolbar,#gform-sink,script').forEach(el=>el.remove());
+    clone.querySelectorAll('[contenteditable]').forEach(el=>el.removeAttribute('contenteditable'));
+    const banner=clone.querySelector('body');
+    if(banner){
+      const note=document.createElement('div');
+      note.style.cssText='padding:14px 18px;margin:0 0 12px;border:2px solid #8a7a56;background:#f4f2ed;font:14px Arial,sans-serif';
+      note.innerHTML='<b>Saved copy of the Eldership Candidate Assessment.</b> Downloaded '
+        +new Date().toLocaleString()+'. Email this file to danny@suncitychurch.com.';
+      banner.insertBefore(note,banner.firstChild);
+    }
+    const blob=new Blob(['<!doctype html>'+clone.outerHTML],{type:'text/html'});
+    const a=document.createElement('a');
+    a.href=URL.createObjectURL(blob);
+    a.download='Eldership Assessment - '+candidateName()+' - '
+      +new Date().toISOString().slice(0,10)+'.html';
+    document.body.appendChild(a);a.click();
+    setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},2000);
+    return true;
+  }catch(e){
+    alert('The copy could not be downloaded automatically. Please use your browser\\'s Print option and save as PDF, then email it to danny@suncitychurch.com.');
+    return false;
+  }
+}
 function submitToChurch(){
   return new Promise(resolve=>{
     let fr=document.getElementById('gform-sink');
@@ -487,20 +539,31 @@ function submitToChurch(){
 async function finishAssessment(){
   const empty=[...document.querySelectorAll('.ans')].filter(el=>!el.textContent.trim()).length;
   if(empty>0 && !confirm(empty+' written answer(s) are still blank. Submit anyway?'))return;
-  const btn=document.querySelector('.toolbar button');
+  const btn=document.querySelector('.toolbar button:not(.ghost)');
   if(localStorage.getItem(KEY+'-submitted')==='1' &&
-     !confirm('You already submitted this assessment. Submit again?')){window.print();return;}
-  btn.disabled=true;btn.textContent='Submitting\\u2026';
+     !confirm('You already sent this assessment. Send it again?')){downloadAnswers();window.print();return;}
+  btn.disabled=true;btn.textContent='Sending\\u2026';
   await submitToChurch();
   localStorage.setItem(KEY+'-submitted','1');
-  btn.disabled=false;btn.textContent='Download PDF Copy';
+  btn.disabled=false;btn.textContent='Send again';
+  // The church form is on another domain, so the browser is not allowed to tell us
+  // whether it accepted the answers. Never claim a delivery we cannot verify: leave
+  // the candidate holding a copy and one clear instruction.
   document.getElementById('savestate').innerHTML=
-    '\\u2713 <b>Submitted to Sun City Church.</b> Now save a PDF copy for your records.';
+    '<b>Sent, and a copy has downloaded.</b> Please email that copy to '
+    +'<a href="mailto:danny@suncitychurch.com" style="color:#fff">danny@suncitychurch.com</a> '
+    +'so we know for certain it arrived.';
+  downloadAnswers();
   window.print();
 }
 restore();
 if(localStorage.getItem(KEY+'-submitted')==='1'){
-  document.querySelector('.toolbar button').textContent='Download PDF Copy';}
+  const b=document.querySelector('.toolbar button:not(.ghost)');
+  if(b)b.textContent='Send again';
+  const s=document.getElementById('savestate');
+  if(s)s.innerHTML='Your answers are restored. If you were told this was submitted before '
+    +'2026-09-25, it may not have reached us \\u2014 press <b>Download my answers</b> and email '
+    +'the file to <a href="mailto:danny@suncitychurch.com" style="color:#fff">danny@suncitychurch.com</a>.';}
 </script>
 """
 if FILLABLE:
